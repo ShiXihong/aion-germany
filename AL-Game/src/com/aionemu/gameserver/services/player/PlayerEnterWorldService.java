@@ -73,6 +73,7 @@ import com.aionemu.gameserver.model.team2.alliance.PlayerAllianceService;
 import com.aionemu.gameserver.model.team2.group.PlayerGroupService;
 import com.aionemu.gameserver.network.aion.AionConnection;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_ABYSS_RANK;
+import com.aionemu.gameserver.network.aion.serverpackets.SM_ABYSS_RANK_POINTS;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_AFTER_TIME_CHECK;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_BLOCK_LIST;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_CHANNEL_INFO;
@@ -92,6 +93,7 @@ import com.aionemu.gameserver.network.aion.serverpackets.SM_LEGION_JOIN_REQUEST_
 import com.aionemu.gameserver.network.aion.serverpackets.SM_MACRO_LIST;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_MESSAGE;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_MOTION;
+import com.aionemu.gameserver.network.aion.serverpackets.SM_PACKAGE_INFO_NOTIFY;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_PLAYER_SPAWN;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_PLAYER_STATE;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_PRICES;
@@ -107,9 +109,8 @@ import com.aionemu.gameserver.network.aion.serverpackets.SM_SYSTEM_MESSAGE;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_TITLE_INFO;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_UI_SETTINGS;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_106;
-import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_133;
+import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_12B;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_60;
-//import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_154;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_7E;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_A5;
 import com.aionemu.gameserver.network.aion.serverpackets.SM_UNK_BD;
@@ -136,19 +137,18 @@ import com.aionemu.gameserver.services.SkillLearnService;
 import com.aionemu.gameserver.services.StigmaService;
 import com.aionemu.gameserver.services.SurveyService;
 import com.aionemu.gameserver.services.TownService;
+import com.aionemu.gameserver.services.TransformationService;
 import com.aionemu.gameserver.services.VortexService;
 import com.aionemu.gameserver.services.WarehouseService;
 import com.aionemu.gameserver.services.abyss.AbyssSkillService;
 import com.aionemu.gameserver.services.conquerer_protector.ConquerorsService;
 import com.aionemu.gameserver.services.craft.RelinquishCraftStatus;
-import com.aionemu.gameserver.services.events.AtreianPassportService;
 import com.aionemu.gameserver.services.events.BoostEventService;
 import com.aionemu.gameserver.services.events.EventService;
 import com.aionemu.gameserver.services.events.EventWindowService;
 import com.aionemu.gameserver.services.events.ShugoSweepService;
 import com.aionemu.gameserver.services.instance.InstanceService;
 import com.aionemu.gameserver.services.mail.MailService;
-import com.aionemu.gameserver.services.player.CreativityPanel.CreativityEssenceService;
 import com.aionemu.gameserver.services.teleport.TeleportService2;
 import com.aionemu.gameserver.services.territory.TerritoryService;
 import com.aionemu.gameserver.services.toypet.MinionService;
@@ -215,8 +215,25 @@ public final class PlayerEnterWorldService {
 	public static final void startEnterWorld(final int objectId, final AionConnection client) {
 		// check if char is banned
 		PlayerAccountData playerAccData = client.getAccount().getPlayerAccountData(objectId);
+
+        if (playerAccData == null) {
+            log.warn("playerAccData == null " + objectId);
+            if (client != null) {
+                client.closeNow();
+            }
+            return;
+        }
+        if (playerAccData.getPlayerCommonData() == null) {
+            log.warn("playerAccData.getPlayerCommonData() == null " + objectId);
+            if (client != null) {
+                client.closeNow();
+            }
+            return;
+        }
+
 		Timestamp lastOnline = playerAccData.getPlayerCommonData().getLastOnline();
-		if (lastOnline != null && client.getAccount().getAccessLevel() < AdminConfig.GM_LEVEL) {
+		Player edit = playerAccData.getPlayerCommonData().getPlayer();
+		if (lastOnline != null && client.getAccount().getAccessLevel() < AdminConfig.GM_LEVEL && edit != null && !edit.isInEditMode()) {
 			if (System.currentTimeMillis() - lastOnline.getTime() < (GSConfig.CHARACTER_REENTRY_TIME * 1000)) {
 				client.sendPacket(new SM_ENTER_WORLD_CHECK((byte) 6)); // 20 sec time
 				client.sendPacket(new SM_AFTER_TIME_CHECK());// TODO
@@ -320,6 +337,7 @@ public final class PlayerEnterWorldService {
 			player.setClientConnection(client);
 
 			log.info("[MAC_AUDIT] Player " + player.getName() + " (account " + account.getName() + ") has entered world with " + client.getMacAddress() + " MAC.");
+            log.info("[HDD_AUDIT] Player " + player.getName() + " (account " + account.getName() + ") has entered world with " + client.getHddSerial() + " HDD.");
 			World.getInstance().storeObject(player);
 
 			StigmaService.onPlayerLogin(player);
@@ -457,9 +475,6 @@ public final class PlayerEnterWorldService {
 			// SM_MOTION
 			client.sendPacket(new SM_MOTION(player.getMotions().getMotions().values()));
 
-			// MONSTERBOOK
-			MonsterbookService.getInstance().onLogin(player);
-
 			// SM_ENTER_WORLD_CHECK
 			client.sendPacket(new SM_ENTER_WORLD_CHECK());
 
@@ -470,7 +485,7 @@ public final class PlayerEnterWorldService {
 			client.sendPacket(new SM_UNK_FD());// TODO
 
 			// SM_PACKAGE_INFO_NOTIFY
-			// client.sendPacket(new SM_PACKAGE_INFO_NOTIFY(0));
+			client.sendPacket(new SM_PACKAGE_INFO_NOTIFY(0));
 
 			// SM_MACRO_LIST
 			sendMacroList(client, player); // offi 4.9.1
@@ -493,9 +508,6 @@ public final class PlayerEnterWorldService {
 			// SM_ITEM_COOLDOWN
 			if (player.getItemCoolDowns() != null)
 				client.sendPacket(new SM_ITEM_COOLDOWN(player.getItemCoolDowns()));
-
-			// Creativity Points
-			CreativityEssenceService.getInstance().onLogin(player);
 
 			// SM_INVENTORY_INFO, SM_CHANNEL_INFO, SM_STATS_INFO
 			// and SM_CUBE_UPDATE advancedStigmas ?! (not on offi)
@@ -610,8 +622,8 @@ public final class PlayerEnterWorldService {
 			// SM_ABYSS_RANK
 			client.sendPacket(new SM_ABYSS_RANK(player.getAbyssRank()));
 
-			// SM_133 - huge list ....
-			client.sendPacket(new SM_UNK_133()); // TODO
+			// SM_ABYSS_RANK_POINTS - huge list ....
+			client.sendPacket(new SM_ABYSS_RANK_POINTS()); // TODO
 
 			// SM_STATS_INFO
 			client.sendPacket(new SM_STATS_INFO(player)); // offi 4.9.1
@@ -630,11 +642,10 @@ public final class PlayerEnterWorldService {
 			client.sendPacket(new SM_YOUTUBE_VIDEO());
 			
 			// SM_UNK_12B
-			// client.sendPacket(new SM_UNK_12B()); // TODO - Null Pointer after Login
+			client.sendPacket(new SM_UNK_12B());
 
 			// SM_BOOST_EVENTS (new with Aion 5.1)
 			BoostEventService.getInstance().sendPacket(player); // TODO
-//			client.sendPacket(new SM_EVENT_BUFF(player, 2)); // TODO
 			
 			// SM_UNK_60
 			client.sendPacket(new SM_UNK_60()); // TODO
@@ -644,9 +655,6 @@ public final class PlayerEnterWorldService {
 
 			// SM_SHUGO_SWEEP
 			ShugoSweepService.getInstance().onLogin(player);
-
-			// SM_ATREIAN_PASSPORT
-			AtreianPassportService.getInstance().onLogin(player);
 
 			// SM_BROKER_SERVICE
 			BrokerService.getInstance().onPlayerLogin(player);
@@ -659,6 +667,9 @@ public final class PlayerEnterWorldService {
 
 			// SM_RECIPE_LIST
 			client.sendPacket(new SM_RECIPE_LIST(player.getRecipeList().getRecipeList()));
+
+			// SM_Transformation
+			TransformationService.getInstance().onPlayerLogin(player);
 
 			// Welcome message
 			PacketSendUtility.sendWhiteMessage(player, serverName);
@@ -846,11 +857,12 @@ public final class PlayerEnterWorldService {
 					return;
 				}
 				else {
-					if (player.getRace() == Race.ASMODIANS)
+					if (player.getRace() == Race.ASMODIANS) {
 						player.getSkillList().addSkill(player, 296, 1);
-					else if (player.getRace() == Race.ELYOS)
+					}
+					else if (player.getRace() == Race.ELYOS) {
 						player.getSkillList().addSkill(player, 295, 1);
-
+					}
 				}
 			}
 
@@ -937,7 +949,6 @@ public final class PlayerEnterWorldService {
 
 			// EnchantService.getGloryShield(player);
 			LunaShopService.getInstance().onLogin(player);
-			MonsterbookService.getInstance().onLogin(player);
 		}
 		else
 			log.info("[DEBUG] enter world" + objectId + ", Player: " + player);

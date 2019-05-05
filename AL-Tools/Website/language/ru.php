@@ -8,6 +8,8 @@ $lang = array(
 		"gb" => "English",
         "ru" => "Russian",
         "fr" => "French",
+        "it" => "Italian",
+		"sp" => "Espanol",
 
         // f�r die Seitentexte
         "login" => "Авторизиция",

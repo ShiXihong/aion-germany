@@ -73,7 +73,9 @@ public class ItemActions {
 		@XmlElement(name = "reduce_level", type = ItemReduceLevelAction.class), 
 		@XmlElement(name = "luna", type = LunaChestAction.class), 
 		@XmlElement(name = "skill_enhance", type = SkillEnhanceAction.class),
-		@XmlElement(name = "sweep", type = ShugoSweepAction.class),})
+		@XmlElement(name = "sweep", type = ShugoSweepAction.class),
+		@XmlElement(name = "adoptminion", type = AdoptMinionAction.class),
+		@XmlElement(name = "adopttransformation", type = AdoptTransformationAction.class),})
 
 	protected List<AbstractItemAction> itemActions;
 
@@ -233,4 +235,27 @@ public class ItemActions {
 		return null;
 	}
 
+    public AdoptMinionAction getAdoptMinionAction() {
+        if (itemActions == null) {
+            return null;
+        }
+        for (AbstractItemAction action : itemActions) {
+            if (action instanceof AdoptMinionAction) {
+				return (AdoptMinionAction) action;
+			}
+        }
+        return null;
+    }
+
+    public AdoptTransformationAction getAdoptTransformationAction() {
+        if (itemActions == null) {
+            return null;
+        }
+        for (AbstractItemAction action : itemActions) {
+            if (action instanceof AdoptTransformationAction) {
+				return (AdoptTransformationAction) action;
+			}
+        }
+        return null;
+    }
 }

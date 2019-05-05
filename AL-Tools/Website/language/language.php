@@ -19,7 +19,9 @@ function getLangMenu($href)
                   array("de","de.png"),
                   array("ru","ru.png"),
                   array("gb","gb.png"),
-                  array("fr","fr.png")
+                  array("fr","fr.png"),
+                  array("it","it.png"),
+				  array("sp","sp.png")
                      );
                      
     $domax = count($tabflags);

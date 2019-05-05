@@ -16,9 +16,11 @@
  */
 package com.aionemu.gameserver.network.aion.serverpackets;
 
+import com.aionemu.commons.database.dao.DAOManager;
 import com.aionemu.gameserver.configs.administration.AdminConfig;
 import com.aionemu.gameserver.configs.main.MembershipConfig;
 import com.aionemu.gameserver.configs.main.WeddingsConfig;
+import com.aionemu.gameserver.dao.PlayerDAO;
 import com.aionemu.gameserver.model.Gender;
 import com.aionemu.gameserver.model.actions.PlayerMode;
 import com.aionemu.gameserver.model.gameobjects.Item;
@@ -28,7 +30,6 @@ import com.aionemu.gameserver.model.gameobjects.player.PlayerCommonData;
 import com.aionemu.gameserver.model.gameobjects.player.PlayerConquererProtectorData;
 import com.aionemu.gameserver.model.items.GodStone;
 import com.aionemu.gameserver.model.items.ItemSlot;
-import com.aionemu.gameserver.model.stats.calc.Stat2;
 import com.aionemu.gameserver.model.team.legion.LegionEmblemType;
 import com.aionemu.gameserver.network.aion.AionConnection;
 import com.aionemu.gameserver.network.aion.AionServerPacket;
@@ -131,9 +132,10 @@ public class SM_PLAYER_INFO extends AionServerPacket {
 						break;
 				}
 			}
-			// * = Wedding
 			if (player.isMarried()) {
-				nameFormat = sb.insert(0, WeddingsConfig.TAG_WEDDING.substring(0, 2)).toString();
+				String partnerName = DAOManager.getDAO(PlayerDAO.class).getPlayerNameByObjId(player.getPartnerId());
+				String tag = WeddingsConfig.TAG_WEDDING; 
+	            nameFormat += " " + tag + " " + partnerName;
 			}
 			// * = Server Staff Access Level
 			if (AdminConfig.CUSTOMTAG_ENABLE && player.isGmMode()) {
@@ -266,12 +268,7 @@ public class SM_PLAYER_INFO extends AionServerPacket {
 		writeC(playerAppearance.getRemoveMane());
 		writeD(playerAppearance.getRightEyeRGB());
 		writeC(playerAppearance.getEyeLashShape());
-		if (player.getGender() == Gender.FEMALE) {
-			writeC(6);
-		}
-		else {
-			writeC(5);
-		}
+		writeC(player.getGender() == Gender.FEMALE ? 6 : 5);
 		writeC(playerAppearance.getJawLine());
 		writeC(playerAppearance.getForehead());
 		writeC(playerAppearance.getEyeHeight());
@@ -326,10 +323,8 @@ public class SM_PLAYER_INFO extends AionServerPacket {
 		writeF(0.25f); // scale
 		writeF(2.0f); // gravity or slide surface o_O
 		writeF(player.getGameStats().getMovementSpeedFloat()); // move speed
-
-		Stat2 attackSpeed = player.getGameStats().getAttackSpeed();
-		writeH(attackSpeed.getBase());
-		writeH(attackSpeed.getCurrent());
+		writeH(player.getGameStats().getAttackSpeed().getBase());
+		writeH(player.getGameStats().getAttackSpeed().getCurrent());
 		writeC(player.getPortAnimation());
 
 		writeS(player.hasStore() ? player.getStore().getStoreMessage() : "");// private store message
@@ -340,12 +335,10 @@ public class SM_PLAYER_INFO extends AionServerPacket {
 		writeF(0);
 		writeF(0);
 		writeF(0);
-
 		writeF(player.getX());// x
 		writeF(player.getY());// y
 		writeF(player.getZ());// z
-		writeC(0x00); // move type
-		// ?
+		writeC(0x00); // move type ?
 		if (player.isUsingFlyTeleport()) {
 			writeD(player.getFlightTeleportId());
 			writeD(player.getFlightDistance());
@@ -357,22 +350,21 @@ public class SM_PLAYER_INFO extends AionServerPacket {
 		// ?
 		writeC(player.getVisualState()); // visualState
 		writeS(player.getCommonData().getNote()); // note show in right down windows if your target on player
-
 		writeH(player.getLevel()); // [level]
 		writeH(player.getPlayerSettings().getDisplay()); // unk - 0x04
 		writeH(player.getPlayerSettings().getDeny()); // unk - 0x00
 		writeH(player.getAbyssRank().getRank().getId()); // abyss rank
 
 		writeH(0x00); // unk - 0x01
-		writeD(0x08); // unk 5.4
+		writeD(0x00); // unk 5.4
 		writeD(player.getTarget() == null ? 0 : player.getTarget().getObjectId()); // target status
 		writeC(0); // suspect id
 		writeD(player.getBonusTime().isBonus() ? 1 : 0); // Abbey Return Bonus 1 - true, 0 - false
 		writeC(player.isMentor() ? 1 : 0);
 		writeD(player.getHouseOwnerId()); // 3.0
 		writeD(player.getBonusTime().getStatus().getId()); // Abbey Return Buff ID 1 -Normal, 2 - New, 3 Return
-		writeD(0x01);// unk 0x00 4.7 //TODO need to figure out
-		writeC(raceId == 0 ? 3 : 5); // language asmo:3 ely:5
+		writeD(0x00);// unk 0x00 4.7 //TODO need to figure out
+		writeC(raceId == 0 ? 5 : 3); // language asmo:3 ely:5
 		/**
 		 * === Conqueror === 0x01 = Conquerers Will Lvl 1 (Buff you get for killing enemies from their home map) 0x02 = Furious Conquerers Will Lvl 2 (Buff you get for killing enemies from their home
 		 * map) 0x03 = Berserk Conquerers Will Lvl 3 (Buff you get for killing enemies from their home map) === Protector == 0x01 = Protector Lvl 1 0x02 = Protector Lvl 2 0x03 = Protector Lvl 3

@@ -27,6 +27,7 @@ import com.aionemu.gameserver.utils.PacketSendUtility;
 import javolution.util.FastMap;
 
 public class MinionList {
+
 	private final Player player;
 	private int lastUsedObjId;
 	private FastMap<Integer, MinionCommonData> minions = new FastMap<Integer, MinionCommonData>();
@@ -55,9 +56,8 @@ public class MinionList {
 				minions.put(minionCommonData.getObjectId(), minionCommonData);
 		}
 		if(minions !=null) {
-			PacketSendUtility.sendPacket(player, new SM_MINIONS(0, player.getMinionList().getMinions()));
+			PacketSendUtility.sendPacket(player, new SM_MINIONS(1, player.getMinionList().getMinions()));
 		}
-		return;
 	}
 
 	public MinionCommonData getMinion(int minionObjId) {
